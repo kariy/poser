@@ -1,0 +1,9 @@
+[project]
+name = "pose-player"
+version = "0.1.0"
+description = "Webcam-based gesture detection that plays music"
+requires-python = ">=3.14"
+dependencies = [
+    "mediapipe>=0.10.33",
+    "opencv-contrib-python>=4.13.0.92",
+]
