@@ -1,13 +1,41 @@
+import time
+
 import cv2
-import mediapipe as mp
 import numpy as np
 
 import config
 from pose_detector import PoseDetector
 from audio_player import AudioPlayer
 
-mp_drawing = mp.solutions.drawing_utils
-mp_pose = mp.solutions.pose
+# How long (seconds) to wait after losing the pose before stopping audio
+STOP_GRACE_PERIOD = 1.0
+
+
+def draw_landmarks(frame, landmarks):
+    """Draw hand landmarks and connections on the frame."""
+    h, w = frame.shape[:2]
+
+    # MediaPipe Hand connections
+    connections = [
+        (0, 1), (1, 2), (2, 3), (3, 4),     # thumb
+        (0, 5), (5, 6), (6, 7), (7, 8),     # index
+        (0, 9), (9, 10), (10, 11), (11, 12),  # middle
+        (0, 13), (13, 14), (14, 15), (15, 16),  # ring
+        (0, 17), (17, 18), (18, 19), (19, 20),  # pinky
+        (5, 9), (9, 13), (13, 17),            # palm
+    ]
+
+    points = []
+    for lm in landmarks:
+        px, py = int(lm.x * w), int(lm.y * h)
+        points.append((px, py))
+
+    for i, j in connections:
+        if i < len(points) and j < len(points):
+            cv2.line(frame, points[i], points[j], (0, 255, 0), 2)
+
+    for px, py in points:
+        cv2.circle(frame, (px, py), 5, (0, 0, 255), -1)
 
 
 def main():
@@ -24,6 +52,8 @@ def main():
 
     print("Pose Player running. Press 'q' to quit.")
 
+    last_pose_time = 0.0
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -38,29 +68,24 @@ def main():
 
         status = "No body detected"
         color = (200, 200, 200)
+        pose_active = False
 
         if landmarks:
-            # Draw skeleton overlay
-            landmark_proto = mp.framework.formats.landmark_pb2.NormalizedLandmarkList()
-            landmark_proto.landmark.extend([
-                mp.framework.formats.landmark_pb2.NormalizedLandmark(
-                    x=lm.x, y=lm.y, z=lm.z
-                ) for lm in landmarks
-            ])
-            mp_drawing.draw_landmarks(frame, landmark_proto, mp_pose.POSE_CONNECTIONS)
+            draw_landmarks(frame, landmarks)
 
             # Check for poses
             matched = detector.match_poses(landmarks, config.ANGLE_TOLERANCE_DEGREES)
 
             if matched:
+                pose_active = True
+                last_pose_time = time.time()
                 pose_name = matched[0]
                 song_path = config.POSE_SONG_MAP.get(pose_name)
-                triggered = False
                 if song_path:
-                    triggered = player.play_if_ready(pose_name, song_path, config.COOLDOWN_SECONDS)
+                    player.play(song_path)
 
                 display_name = pose_name.replace("_", " ").upper()
-                if triggered:
+                if player.is_playing():
                     status = f"{display_name} - Playing!"
                     color = (0, 255, 0)
                 else:
@@ -69,6 +94,10 @@ def main():
             else:
                 status = "Listening..."
                 color = (255, 255, 255)
+
+        if not pose_active and player.is_playing():
+            if time.time() - last_pose_time > STOP_GRACE_PERIOD:
+                player.stop()
 
         # Draw status overlay
         cv2.rectangle(frame, (0, 0), (frame.shape[1], 40), (0, 0, 0), -1)

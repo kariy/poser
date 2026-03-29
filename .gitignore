@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 songs/*.mp3
 songs/*.wav
+*.task

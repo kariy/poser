@@ -1,6 +1,10 @@
+import os
+
+_DIR = os.path.dirname(__file__)
+
 # Pose-to-song mapping: pose name -> path to audio file
 POSE_SONG_MAP = {
-    "t_pose": "songs/song.mp3",
+    "peace_sign": os.path.join(_DIR, "songs", "song.mp3"),
 }
 
 # How long (seconds) before the same pose can trigger again
